@@ -166,13 +166,24 @@ class EqualLinear(nn.Module):
         )
 
 
+class style_affine(nn.Module):
+    def __init__(self,
+        mapped_latent_dim,
+        in_channel):
+        super().__init__()
+
+        self.modulation = EqualLinear(mapped_latent_dim, in_channel, bias_init=1)
+
+    def forward(self, mapped_latent):
+        style = self.modulation(mapped_latent)
+        return style
+
 class ModulatedConv2d(nn.Module):
     def __init__(
         self,
         in_channel,
         out_channel,
         kernel_size,
-        style_dim,
         demodulate=True,
         upsample=False,
         downsample=False,
@@ -212,8 +223,6 @@ class ModulatedConv2d(nn.Module):
             torch.randn(1, out_channel, in_channel, kernel_size, kernel_size)
         )
 
-        self.modulation = EqualLinear(style_dim, in_channel, bias_init=1)
-
         self.demodulate = demodulate
         self.fused = fused
 
@@ -223,10 +232,9 @@ class ModulatedConv2d(nn.Module):
             f"upsample={self.upsample}, downsample={self.downsample})"
         )
 
-    def forward(self, input, style, return_styles=False, input_is_styles=False):
+    def forward(self, input, style):
         batch, in_channel, height, width = input.shape
-        if not input_is_styles:
-            style = self.modulation(style).view(batch, 1, in_channel, 1, 1)
+        style = style.view(batch, 1, in_channel, 1, 1)
         weight = self.scale * self.weight * style
 
         if self.demodulate:
@@ -270,9 +278,7 @@ class ModulatedConv2d(nn.Module):
             _, _, height, width = out.shape
             out = out.view(batch, self.out_channel, height, width)\
 
-        if return_styles:
-            return out, style
-        return out, None
+        return out
 
 
 class NoiseInjection(nn.Module):
@@ -330,14 +336,13 @@ class StyledConv(nn.Module):
         # self.activate = ScaledLeakyReLU(0.2)
         self.activate = FusedLeakyReLU(out_channel)
 
-    def forward(self, input, style, noise=None, return_styles=False, input_is_styles=False):
-        out, style = self.conv(input, style, return_styles=return_styles, input_is_styles=input_is_styles)
+    def forward(self, input, style, noise=None):
+        out = self.conv(input, style)
         out = self.noise(out, noise=noise)
         # out = out + self.bias
         out = self.activate(out)
 
-        return out, style
-
+        return out
 
 class ToRGB(nn.Module):
     def __init__(self, in_channel, style_dim, upsample=True, blur_kernel=[1, 3, 3, 1]):
@@ -349,8 +354,8 @@ class ToRGB(nn.Module):
         self.conv = ModulatedConv2d(in_channel, 3, 1, style_dim, demodulate=False)
         self.bias = nn.Parameter(torch.zeros(1, 3, 1, 1))
 
-    def forward(self, input, style, skip=None, input_is_styles=False):
-        out, _ = self.conv(input, style, input_is_styles=input_is_styles)
+    def forward(self, input, style, skip=None):
+        out = self.conv(input, style)
         out = out + self.bias
 
         if skip is not None:
@@ -365,7 +370,7 @@ class Generator(nn.Module):
     def __init__(
         self,
         size,
-        style_dim,
+        latent_dim,
         n_mlp,
         channel_multiplier=2,
         blur_kernel=[1, 3, 3, 1],
@@ -375,18 +380,18 @@ class Generator(nn.Module):
 
         self.size = size
 
-        self.style_dim = style_dim
+        self.latent_dim = latent_dim
 
         layers = [PixelNorm()]
 
         for i in range(n_mlp):
             layers.append(
                 EqualLinear(
-                    style_dim, style_dim, lr_mul=lr_mlp, activation="fused_lrelu"
+                    latent_dim, latent_dim, lr_mul=lr_mlp, activation="fused_lrelu"
                 )
             )
 
-        self.style = nn.Sequential(*layers)
+        self.mapping = nn.Sequential(*layers)
 
         self.channels = {
             4: 512,
@@ -400,11 +405,16 @@ class Generator(nn.Module):
             1024: 16 * channel_multiplier,
         }
 
+        self.style_affines_conv = nn.ModuleList()
+        self.style_affines_rgb = nn.ModuleList()
+
         self.input = ConstantInput(self.channels[4])
+        self.style_affines_conv.append(style_affine(latent_dim, self.channels[4]))
         self.conv1 = StyledConv(
-            self.channels[4], self.channels[4], 3, style_dim, blur_kernel=blur_kernel
+            self.channels[4], self.channels[4], 3, latent_dim, blur_kernel=blur_kernel
         )
-        self.to_rgb1 = ToRGB(self.channels[4], style_dim, upsample=False)
+        self.style_affines_rgb.append(style_affine(latent_dim, self.channels[4]))
+        self.to_rgb1 = ToRGB(self.channels[4], latent_dim, upsample=False)
 
         self.log_size = int(math.log(size, 2))
         self.num_layers = (self.log_size - 2) * 2 + 1
@@ -414,8 +424,6 @@ class Generator(nn.Module):
         self.to_rgbs = nn.ModuleList()
         self.noises = nn.Module()
 
-        in_channel = self.channels[4]
-
         for layer_idx in range(self.num_layers):
             res = (layer_idx + 5) // 2
             shape = [1, 1, 2 ** res, 2 ** res]
@@ -424,24 +432,36 @@ class Generator(nn.Module):
         for i in range(3, self.log_size + 1):
             out_channel = self.channels[2 ** i]
 
+            self.style_affines_conv.append(
+                style_affine(latent_dim, in_channel)
+            )
+
             self.convs.append(
                 StyledConv(
                     in_channel,
                     out_channel,
                     3,
-                    style_dim,
+                    latent_dim,
                     upsample=True,
                     blur_kernel=blur_kernel,
                 )
             )
 
+            self.style_affines_conv.append(
+                style_affine(latent_dim, out_channel)
+            )
+
             self.convs.append(
                 StyledConv(
-                    out_channel, out_channel, 3, style_dim, blur_kernel=blur_kernel
+                    out_channel, out_channel, 3, latent_dim, blur_kernel=blur_kernel
                 )
             )
 
-            self.to_rgbs.append(ToRGB(out_channel, style_dim))
+            self.style_affines_rgb.append(
+                style_affine(latent_dim, out_channel)
+            )
+
+            self.to_rgbs.append(ToRGB(out_channel, latent_dim))
 
             in_channel = out_channel
 
@@ -460,26 +480,40 @@ class Generator(nn.Module):
 
     def mean_latent(self, n_latent):
         latent_in = torch.randn(
-            n_latent, self.style_dim, device=self.input.input.device
+            n_latent, self.latent_dim, device=self.input.input.device
         )
-        latent = self.style(latent_in).mean(0, keepdim=True)
+        latent = self.mapping(latent_in).mean(0, keepdim=True)
 
         return latent
 
     def get_latent(self, input):
-        return self.style(input)
+        return self.mapping(input)
+
+    def get_styles(self, mapped_latents):
+        styles_conv = []
+        for i, affine in enumerate(self.style_affines_conv):
+            styles_conv.append(affine(mapped_latents[i]))
+        styles_rgb = []
+        for i, affine in enumerate(self.style_affines_rgb):
+            styles_rgb.append(affine(mapped_latents[i*2-1]))
+        return styles_conv, styles_rgb
+            
 
     def forward(
         self,
-        styles,
-        return_latents=False,
+        latents=None,
+        mapped_latents=None,
+        styles=None,
         inject_index=None,
         input_is_latent=True,
         noise=None,
         randomize_noise=True,
+        return_latents=False,
         return_styles=False,
         input_is_styles=False
     ):
+
+        assert latents is not None or mapped_latents is not None or styles is not None, "latents, mapped_latents, and styles cannot all be None"
 
         if noise is None:
             if randomize_noise:
@@ -491,78 +525,55 @@ class Generator(nn.Module):
 
         if not input_is_styles:
             if not input_is_latent:
-                styles = [self.style(s) for s in styles]
+                mapped_latents = [self.mapping(s) for s in latents]
 
-
-
-            if len(styles) < 2:
+            if len(mapped_latents) < 2:
                 inject_index = self.n_latent
 
-                if styles[0].ndim < 3:
-                    latent = styles[0].unsqueeze(1).repeat(1, inject_index, 1)
+                if mapped_latents[0].ndim < 3:
+                    mapped_latent = mapped_latents[0].unsqueeze(1).repeat(1, inject_index, 1)
 
                 else:
-                    latent = styles[0]
+                    mapped_latent = mapped_latents[0]
 
             else:
                 if inject_index is None:
                     inject_index = random.randint(1, self.n_latent - 1)
 
-                latent = styles[0].unsqueeze(1).repeat(1, inject_index, 1)
-                latent2 = styles[1].unsqueeze(1).repeat(1, self.n_latent - inject_index, 1)
+                mapped_latent = mapped_latents[0].unsqueeze(1).repeat(1, inject_index, 1)
+                mapped_latent2 = mapped_latents[1].unsqueeze(1).repeat(1, self.n_latent - inject_index, 1)
 
-                latent = torch.cat([latent, latent2], 1)
+                mapped_latent = torch.cat([mapped_latent, mapped_latent2], 1)
+            
+            styles_conv, styles_rgb = self.get_styles(mapped_latents)
+        
+        out = self.input(mapped_latent)
+        out = self.conv1(out, styles_conv[0], noise=noise[0])
+        skip = self.to_rgb1(out, styles_rgb[0])
 
-            style_vectors = []
-            out = self.input(latent)
-            out, style = self.conv1(out, latent[:, 0], noise=noise[0], return_styles=return_styles)
-            style_vectors.append(style)
-            skip = self.to_rgb1(out, latent[:, 1])
+        i = 1
+        for conv1, conv2, noise1, noise2, to_rgb, style_rgb in zip(
+            self.convs[::2], self.convs[1::2], noise[1::2], noise[2::2], self.to_rgbs, styles_rgb
+        ):
+            out = conv1(out, styles_conv[i], noise=noise1)
+            out = conv2(out, styles_conv[i + 1], noise=noise2)
+            skip = to_rgb(out, style_rgb, skip)
 
-            i = 1
-            for conv1, conv2, noise1, noise2, to_rgb in zip(
-                self.convs[::2], self.convs[1::2], noise[1::2], noise[2::2], self.to_rgbs
-            ):
-                out, style = conv1(out, latent[:, i], noise=noise1, return_styles=return_styles)
-                style_vectors.append(style)
-                out, style = conv2(out, latent[:, i + 1], noise=noise2, return_styles=return_styles)
-                style_vectors.append(style)
-                skip = to_rgb(out, latent[:, i + 2], skip)
+            i += 2
 
-                i += 2
-
-            image = skip
-
-# If input is styles
-        else:
-            style_vectors = styles
-            out = self.input(styles[0])
-            out, _ = self.conv1(out, styles[0], noise=noise[0], input_is_styles=input_is_styles)
-            skip = self.to_rgb1(out, styles[1], input_is_styles=input_is_styles)
-
-            i = 1
-            for conv1, conv2, noise1, noise2, to_rgb in zip(
-                self.convs[::2], self.convs[1::2], noise[1::2], noise[2::2], self.to_rgbs
-            ):
-                out, _ = conv1(out, styles[i], noise=noise1, input_is_styles=input_is_styles)
-                out, _ = conv2(out, styles[i + 1], noise=noise2, input_is_styles=input_is_styles)
-                skip = to_rgb(out, styles[i + 2], skip, input_is_styles=input_is_styles)
-
-                i += 2
-
-            image = skip
+        image = skip
 
 
         if return_latents:
             # return image, latent
 
             if return_styles:
-                return image, latent, style_vectors
-            return image, latent, None
+                return image, mapped_latent, styles
+            return image, mapped_latent, None
 
         else:
             if return_styles:
-                return image, None, style_vectors
+                return image, None, styles
             return image, None, None
 
 

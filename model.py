@@ -317,15 +317,14 @@ class StyledConv(nn.Module):
         style_dim,
         upsample=False,
         blur_kernel=[1, 3, 3, 1],
-        demodulate=True,
+        demodulate=True
     ):
         super().__init__()
-
+        print(demodulate)
         self.conv = ModulatedConv2d(
             in_channel,
             out_channel,
             kernel_size,
-            style_dim,
             upsample=upsample,
             blur_kernel=blur_kernel,
             demodulate=demodulate
@@ -351,7 +350,7 @@ class ToRGB(nn.Module):
         if upsample:
             self.upsample = Upsample(blur_kernel)
 
-        self.conv = ModulatedConv2d(in_channel, 3, 1, style_dim, demodulate=False)
+        self.conv = ModulatedConv2d(in_channel, 3, 1, demodulate=False)
         self.bias = nn.Parameter(torch.zeros(1, 3, 1, 1))
 
     def forward(self, input, style, skip=None):
@@ -423,6 +422,8 @@ class Generator(nn.Module):
         self.upsamples = nn.ModuleList()
         self.to_rgbs = nn.ModuleList()
         self.noises = nn.Module()
+
+        in_channel = self.channels[4]
 
         for layer_idx in range(self.num_layers):
             res = (layer_idx + 5) // 2

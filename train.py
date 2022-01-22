@@ -143,7 +143,7 @@ def train(args, loader, generator, discriminator, encoder, classifier, g_optim, 
 
     requires_grad(classifier, False)
     l1_loss = nn.L1Loss()
-    lpips_loss = lpips.LPIPS(net='vgg')
+    lpips_loss = lpips.LPIPS(net='vgg').to(device)
     kld_loss = nn.KLDivLoss()
 
     accum = 0.5 ** (32 / (10 * 1000))
@@ -163,6 +163,8 @@ def train(args, loader, generator, discriminator, encoder, classifier, g_optim, 
             break
 
         real_img = next(loader)
+        B, S, _, C = real_img.shape
+        real_img = torch.reshape(real_img, [B, C, S, S]).float()
         real_img = real_img.to(device)
 
         requires_grad(generator, False)
@@ -232,7 +234,8 @@ def train(args, loader, generator, discriminator, encoder, classifier, g_optim, 
 
         fake_pred = discriminator(fake_img)
         g_loss = g_nonsaturating_loss(fake_pred)
-        rec_loss = 0.1 * l1_loss(encoder(fake_img), encoded_img) + 0.1 * lpips_loss(fake_img, real_img) + l1_loss(fake_img, real_img)
+        lpip = torch.mean(lpips_loss(fake_img, real_img))
+        rec_loss = 0.1 * l1_loss(encoder(fake_img), encoded_img) + 0.1 * lpip + l1_loss(fake_img, real_img)
         cl_loss = kld_loss(classifier(fake_img), classified_img)
         total_loss = g_loss + rec_loss + cl_loss
 
@@ -251,7 +254,9 @@ def train(args, loader, generator, discriminator, encoder, classifier, g_optim, 
         if g_regularize:
             path_batch_size = max(1, args.batch // args.path_batch_shrink)
             # noise = mixing_noise(path_batch_size, args.latent, args.mixing, device)
-            # fake_img, latents, _ = generator([torch.cat((encoded_img, classified_img), dim=1)], return_latents=True)
+            encoded_img = encoder(real_img)
+            classified_img = classifier(real_img)
+            fake_img, latents, _ = generator([torch.cat((encoded_img, classified_img), dim=1)], return_latents=True)
 
             path_loss, mean_path_length, path_lengths = g_path_regularize(
                 fake_img, latents, mean_path_length
@@ -286,8 +291,9 @@ def train(args, loader, generator, discriminator, encoder, classifier, g_optim, 
         fake_score_val = loss_reduced["fake_score"].mean().item()
         path_length_val = loss_reduced["path_length"].mean().item()
 
-        if i % 100 == 0:
+        if i % 1000 == 0:
             with torch.no_grad():
+                print(i)
                 g_ema.eval()
                 sample, _, _ = g_ema([torch.cat((encoded_img, classified_img), dim=1)])
                 utils.save_image(
@@ -301,13 +307,14 @@ def train(args, loader, generator, discriminator, encoder, classifier, g_optim, 
         if i % 10000 == 0:
             torch.save(
                 {
-                    "g": g_module.state_dict(),
-                    "d": d_module.state_dict(),
+                    "g": generator.state_dict(),
+                    "d": discriminator.state_dict(),
                     "g_ema": g_ema.state_dict(),
                     "g_optim": g_optim.state_dict(),
                     "d_optim": d_optim.state_dict(),
+                    "e_optim": e_optim.state_dict(),
                     "args": args,
-                    "ada_aug_p": ada_aug_p,
+                    "e":encoder.state_dict(),
                 },
                 f"checkpoint/{str(i).zfill(6)}.pt",
             )
@@ -324,7 +331,7 @@ if __name__ == "__main__":
         "--iter", type=int, default=250000, help="total training iterations"
     )
     parser.add_argument(
-        "--batch", type=int, default=16, help="batch sizes for each gpus"
+        "--batch", type=int, default=4, help="batch sizes for each gpus"
     )
     parser.add_argument(
         "--n_sample",
@@ -422,7 +429,7 @@ if __name__ == "__main__":
         torch.distributed.init_process_group(backend="nccl", init_method="env://")
         synchronize()
 
-    args.latent = 512
+    args.latent = 514
     args.n_mlp = 8
 
     args.start_iter = 0
@@ -510,12 +517,13 @@ if __name__ == "__main__":
     val_path = args.dir + '/afhq/val/'
 
     train_data = create_dataset(train_path, 64, ['cat', 'dog'])
-    val_data = create_dataset(val_path, 64, ['cat', 'dog'])
-    val_loader = DataLoader(val_data, batch_size=4, shuffle=True)
-    train_loader = DataLoader(train_data, batch_size=4, shuffle=True)
+    # val_data = create_dataset(val_path, 64, ['cat', 'dog'])
+    # val_loader = DataLoader(val_data, batch_size=args.batch, shuffle=True)
+    train_loader = DataLoader(train_data, batch_size=args.batch, shuffle=True)
 
     classifier = models.mobilenet_v2(pretrained=False, num_classes=2)
     classifier.load_state_dict(torch.load("classifier_model.pt"))
+    classifier.to(device)
     classifier.eval()
 
     # dataset = MultiResolutionDataset(args.path, transform, args.size)

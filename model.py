@@ -557,8 +557,8 @@ class Generator(nn.Module):
             # return image, latent
 
             if return_styles:
-                return image, latents, style_vectors
-            return image, latents, None
+                return image, latent, style_vectors
+            return image, latent, None
 
         else:
             if return_styles:

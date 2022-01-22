@@ -1,10 +1,8 @@
-import cv2
 import numpy as np
 import torch
 import torchvision.models as models
 import os
 from PIL import Image
-from  matplotlib import pyplot as plt
 from torch.utils.data import Dataset, DataLoader
 
 
@@ -16,12 +14,11 @@ def create_dataset(img_folder, size, classes):
         for file in os.listdir(os.path.join(img_folder, dir1)):
             img_path = os.path.join(img_folder, dir1, file)
             img = Image.open(img_path)
-            img = torch.from_numpy(np.array(img.resize((64, 64)))).to(torch.float)
+            img = torch.from_numpy(np.array(img.resize((size, size)))).to(torch.float)
             img = (img - 127.5) / 127.5
-            data.append((img, i))
+            data.append(img)
 
-    return data
-
+    return torch.stack(data)
 
 if __name__ == "__main__":
     # extract the image array and class name

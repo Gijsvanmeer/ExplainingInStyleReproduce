@@ -328,7 +328,7 @@ class StyledConv(nn.Module):
             style_dim,
             upsample=upsample,
             blur_kernel=blur_kernel,
-            demodulate=demodulate,
+            demodulate=demodulate
         )
 
         self.noise = NoiseInjection()

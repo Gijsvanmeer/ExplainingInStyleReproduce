@@ -302,7 +302,7 @@ class ConstantInput(nn.Module):
         self.input = nn.Parameter(torch.randn(1, channel, size, size))
 
     def forward(self, input):
-        batch = input.shape[0]
+        batch = input[0].shape[0]
         out = self.input.repeat(batch, 1, 1, 1)
 
         return out
@@ -320,7 +320,6 @@ class StyledConv(nn.Module):
         demodulate=True
     ):
         super().__init__()
-        print(demodulate)
         self.conv = ModulatedConv2d(
             in_channel,
             out_channel,
@@ -493,10 +492,10 @@ class Generator(nn.Module):
     def get_styles(self, mapped_latents):
         styles_conv = []
         for i, affine in enumerate(self.style_affines_conv):
-            styles_conv.append(affine(mapped_latents[i]))
+            styles_conv.append(affine(mapped_latents[:, i]))
         styles_rgb = []
         for i, affine in enumerate(self.style_affines_rgb):
-            styles_rgb.append(affine(mapped_latents[i*2-1]))
+            styles_rgb.append(affine(mapped_latents[:, i*2-1]))
         return styles_conv, styles_rgb
             
 
@@ -546,15 +545,17 @@ class Generator(nn.Module):
 
                 mapped_latent = torch.cat([mapped_latent, mapped_latent2], 1)
             
-            styles_conv, styles_rgb = self.get_styles(mapped_latents)
+            styles = self.get_styles(mapped_latents)
+
+        styles_conv, styles_rgb = styles
         
-        out = self.input(mapped_latent)
+        out = self.input(styles_conv)
         out = self.conv1(out, styles_conv[0], noise=noise[0])
         skip = self.to_rgb1(out, styles_rgb[0])
 
         i = 1
         for conv1, conv2, noise1, noise2, to_rgb, style_rgb in zip(
-            self.convs[::2], self.convs[1::2], noise[1::2], noise[2::2], self.to_rgbs, styles_rgb
+            self.convs[::2], self.convs[1::2], noise[1::2], noise[2::2], self.to_rgbs, styles_rgb[1:]
         ):
             out = conv1(out, styles_conv[i], noise=noise1)
             out = conv2(out, styles_conv[i + 1], noise=noise2)

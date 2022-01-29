@@ -144,7 +144,7 @@ def train(args, loader, generator, discriminator, encoder, classifier, g_optim, 
     requires_grad(classifier, False)
     l1_loss = nn.L1Loss()
     lpips_loss = lpips.LPIPS(net='vgg').to(device)
-    kld_loss = nn.KLDivLoss()
+    kld_loss = nn.KLDivLoss(log_target=True)
 
     accum = 0.5 ** (32 / (10 * 1000))
     # ada_aug_p = args.augment_p if args.augment_p > 0 else 0.0
@@ -164,7 +164,8 @@ def train(args, loader, generator, discriminator, encoder, classifier, g_optim, 
 
         real_img = next(loader)
         B, S, _, C = real_img.shape
-        real_img = torch.reshape(real_img, [B, C, S, S]).float()
+        real_img = real_img.permute(0,3,1,2).float()
+        # real_img = torch.reshape(real_img, [B, C, S, S]).float()
         real_img = real_img.to(device)
 
         requires_grad(generator, False)
@@ -236,7 +237,7 @@ def train(args, loader, generator, discriminator, encoder, classifier, g_optim, 
         g_loss = g_nonsaturating_loss(fake_pred)
         lpip = torch.mean(lpips_loss(fake_img, real_img))
         rec_loss = 0.1 * l1_loss(encoder(fake_img), encoded_img) + 0.1 * lpip + l1_loss(fake_img, real_img)
-        cl_loss = kld_loss(classifier(fake_img), classified_img)
+        cl_loss = kld_loss(nn.LogSoftmax(-1)(classifier(fake_img)), nn.LogSoftmax(-1)(classified_img))
         total_loss = g_loss + rec_loss + cl_loss
 
         loss_dict["g"] = g_loss
@@ -322,6 +323,7 @@ def train(args, loader, generator, discriminator, encoder, classifier, g_optim, 
 
 if __name__ == "__main__":
     device = "cuda"
+    print(device)
 
     parser = argparse.ArgumentParser(description="StyleGAN2 trainer")
 
@@ -378,7 +380,7 @@ if __name__ == "__main__":
         default=None,
         help="path to the checkpoints to resume training",
     )
-    parser.add_argument("--lr", type=float, default=0.002, help="learning rate")
+    parser.add_argument("--lr", type=float, default=0.0002, help="learning rate")
     parser.add_argument(
         "--channel_multiplier",
         type=int,
@@ -443,12 +445,15 @@ if __name__ == "__main__":
     generator = Generator(
         args.size, args.latent, args.n_mlp, channel_multiplier=args.channel_multiplier
     ).to(device)
+
     discriminator = Discriminator(
         args.size, channel_multiplier=args.channel_multiplier
     ).to(device)
+
     encoder = Encoder(
         args.size, channel_multiplier=args.channel_multiplier
     ).to(device)
+
     g_ema = Generator(
         args.size, args.latent, args.n_mlp, channel_multiplier=args.channel_multiplier
     ).to(device)
@@ -487,9 +492,10 @@ if __name__ == "__main__":
         generator.load_state_dict(ckpt["g"])
         discriminator.load_state_dict(ckpt["d"])
         g_ema.load_state_dict(ckpt["g_ema"])
-
+        encoder.load_state_dict(ckpt['e'])
         g_optim.load_state_dict(ckpt["g_optim"])
         d_optim.load_state_dict(ckpt["d_optim"])
+        e_optim.load_state_dict(ckpt["e_optim"])
 
     if args.distributed:
         generator = nn.parallel.DistributedDataParallel(
@@ -513,6 +519,7 @@ if __name__ == "__main__":
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5), inplace=True),
         ]
     )
+
     train_path = args.dir + '/afhq/train/'
     val_path = args.dir + '/afhq/val/'
 
@@ -521,8 +528,9 @@ if __name__ == "__main__":
     # val_loader = DataLoader(val_data, batch_size=args.batch, shuffle=True)
     train_loader = DataLoader(train_data, batch_size=args.batch, shuffle=True)
 
+
     classifier = models.mobilenet_v2(pretrained=False, num_classes=2)
-    classifier.load_state_dict(torch.load("classifier_model.pt"))
+    classifier.load_state_dict(torch.load("classifier_model_permute_lr.pt"))
     classifier.to(device)
     classifier.eval()
 
@@ -533,7 +541,5 @@ if __name__ == "__main__":
     #     sampler=data_sampler(dataset, shuffle=True, distributed=args.distributed),
     #     drop_last=True,
     # )
-
-
 
     train(args, train_loader, generator, discriminator, encoder, classifier, g_optim, d_optim, e_optim, g_ema, device)

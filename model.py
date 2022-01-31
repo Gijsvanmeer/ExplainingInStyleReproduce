@@ -178,6 +178,7 @@ class style_affine(nn.Module):
         style = self.modulation(mapped_latent)
         return style
 
+
 class ModulatedConv2d(nn.Module):
     def __init__(
         self,
@@ -497,7 +498,7 @@ class Generator(nn.Module):
         for i, affine in enumerate(self.style_affines_rgb):
             styles_rgb.append(affine(mapped_latents[:, i*2-1]))
         return styles_conv, styles_rgb
-            
+
 
     def forward(
         self,
@@ -531,10 +532,10 @@ class Generator(nn.Module):
                 inject_index = self.n_latent
 
                 if mapped_latents[0].ndim < 3:
-                    mapped_latent = mapped_latents[0].unsqueeze(1).repeat(1, inject_index, 1)
+                    mapped_latents = mapped_latents[0].unsqueeze(1).repeat(1, inject_index, 1)
 
                 else:
-                    mapped_latent = mapped_latents[0]
+                    mapped_latents = mapped_latents[0]
 
             else:
                 if inject_index is None:
@@ -543,12 +544,12 @@ class Generator(nn.Module):
                 mapped_latent = mapped_latents[0].unsqueeze(1).repeat(1, inject_index, 1)
                 mapped_latent2 = mapped_latents[1].unsqueeze(1).repeat(1, self.n_latent - inject_index, 1)
 
-                mapped_latent = torch.cat([mapped_latent, mapped_latent2], 1)
-            
+                mapped_latents = torch.cat([mapped_latent, mapped_latent2], 1)
+
             styles = self.get_styles(mapped_latents)
 
         styles_conv, styles_rgb = styles
-        
+
         out = self.input(styles_conv)
         out = self.conv1(out, styles_conv[0], noise=noise[0])
         skip = self.to_rgb1(out, styles_rgb[0])
@@ -570,8 +571,8 @@ class Generator(nn.Module):
             # return image, latent
 
             if return_styles:
-                return image, mapped_latent, styles
-            return image, mapped_latent, None
+                return image, mapped_latents, styles
+            return image, mapped_latents, None
 
         else:
             if return_styles:

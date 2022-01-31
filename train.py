@@ -16,11 +16,12 @@ from op import conv2d_gradfix
 from model import Generator, Discriminator, Encoder
 
 
+# Set requires_grad for model
 def requires_grad(model, flag=True):
     for p in model.parameters():
         p.requires_grad = flag
 
-
+# Update weights of model1 with model2 and some decay rate
 def accumulate(model1, model2, decay=0.999):
     par1 = dict(model1.named_parameters())
     par2 = dict(model2.named_parameters())
@@ -34,14 +35,14 @@ def sample_data(loader):
         for batch in loader:
             yield batch
 
-
+# Compute discriminator adversarial loss
 def d_logistic_loss(real_pred, fake_pred):
     real_loss = F.softplus(-real_pred)
     fake_loss = F.softplus(fake_pred)
 
     return real_loss.mean() + fake_loss.mean()
 
-
+# Compute discriminator regularization loss
 def d_r1_loss(real_pred, real_img):
     with conv2d_gradfix.no_weight_gradients():
         grad_real, = autograd.grad(
@@ -51,13 +52,13 @@ def d_r1_loss(real_pred, real_img):
 
     return grad_penalty
 
-
+# Compute generator adversarial loss
 def g_nonsaturating_loss(fake_pred):
     loss = F.softplus(-fake_pred).mean()
 
     return loss
 
-
+# Compute generator path regularization loss
 def g_path_regularize(fake_img, latents, mean_path_length, decay=0.01):
     noise = torch.randn_like(fake_img) / math.sqrt(
         fake_img.shape[2] * fake_img.shape[3]
@@ -87,6 +88,7 @@ def train(args, loader, generator, discriminator, encoder, classifier, g_optim, 
     lpips_loss = lpips.LPIPS(net='vgg').to(device)
     kld_loss = nn.KLDivLoss(log_target=True, reduction='batchmean')
 
+    # Decay factor for estimated mean average generator accumulation
     accum = 0.5 ** (32 / (10 * 1000))
 
     for idx in pbar:
@@ -97,10 +99,10 @@ def train(args, loader, generator, discriminator, encoder, classifier, g_optim, 
             break
 
         real_img = next(loader)
-        B, S, _, C = real_img.shape
         real_img = real_img.permute(0,3,1,2).float()
         real_img = real_img.to(device)
 
+        # Train discriminator
         requires_grad(generator, False)
         requires_grad(discriminator, True)
         requires_grad(encoder, False)
@@ -117,6 +119,7 @@ def train(args, loader, generator, discriminator, encoder, classifier, g_optim, 
 
         d_regularize = i % args.d_reg_every == 0
 
+        # Regularize discriminator
         if d_regularize:
             real_img.requires_grad = True
 
@@ -128,6 +131,7 @@ def train(args, loader, generator, discriminator, encoder, classifier, g_optim, 
 
             d_optim.step()
 
+        # Train generator and encoder
         requires_grad(generator, True)
         requires_grad(discriminator, False)
         requires_grad(encoder, True)
@@ -137,6 +141,7 @@ def train(args, loader, generator, discriminator, encoder, classifier, g_optim, 
         fake_img, latents, _ = generator(mapped_latents=[torch.cat((encoded_img, classified_img), dim=1)], return_latents=True)
 
         fake_pred = discriminator(fake_img)
+
         g_loss = g_nonsaturating_loss(fake_pred)
         lpip = torch.mean(lpips_loss(fake_img, real_img))
         rec_loss = 0.1 * l1_loss(encoder(fake_img), encoded_img) + 0.1 * lpip + l1_loss(fake_img, real_img)
@@ -150,7 +155,7 @@ def train(args, loader, generator, discriminator, encoder, classifier, g_optim, 
         e_optim.step()
 
         g_regularize = i % args.g_reg_every == 0
-
+        # Regularize generator
         if g_regularize:
             path_batch_size = max(1, args.batch // args.path_batch_shrink)
             encoded_img = encoder(real_img)
@@ -171,8 +176,10 @@ def train(args, loader, generator, discriminator, encoder, classifier, g_optim, 
 
             g_optim.step()
 
+        # Update the estimated mean average of the model
         accumulate(g_ema, generator, accum)
 
+        # Save a sample every 1000 iterations
         if i % 1000 == 0:
             with torch.no_grad():
                 print(i)
@@ -186,6 +193,7 @@ def train(args, loader, generator, discriminator, encoder, classifier, g_optim, 
                     range=(-1, 1),
                 )
 
+        # Save a checkpoint of the models every 10000 iterations
         if i % 10000 == 0:
             torch.save(
                 {
@@ -300,6 +308,7 @@ if __name__ == "__main__":
         encoder.parameters(),
         lr=args.lr)
 
+    # Load a checkpoint
     if args.ckpt is not None:
         print("load model:", args.ckpt)
 

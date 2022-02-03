@@ -330,7 +330,7 @@ if __name__ == "__main__":
         e_optim.load_state_dict(ckpt["e_optim"])
 
     # train_path = args.dir + '/afhq/train/'
-    # train_data = create_dataset(train_path, 64, ['cat', 'dog'])
+    # train_data = create_dataset_classes(train_path, 64, ['cat', 'dog'])
     # train_loader = DataLoader(train_data, batch_size=args.batch, shuffle=True)
 
     train_path_thumb = args.dir + '/Thumbnails128x128/train/'

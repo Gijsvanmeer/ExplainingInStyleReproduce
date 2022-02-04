@@ -27,7 +27,7 @@ The StylEx model is an adaptation of the StyleGAN2 model where we used the Style
 
 
 ### Requirements:
-To run the training code certain python libraries should be installed. When using anaconda the yml environment (env.yml) can be installed. For the notebook file the python library Ninja is needed. 
+To run the training code certain python libraries should be installed. When using anaconda the yml environment (env.yml) can be installed. For the notebook file the python library Ninja is needed. The code should only be run on a gpu with cuda.
 
 ### How to train:
 To run the training loop of the StylEx model one can run the command <code> python train.py --dir DATA_DIR </code> where DATA_DIR is the directory where the data is located. If the data is located in the same file this part of the command can be excluded. Currently the FFHQ data is the expected together with the celebA classifier. When one wants to run the AFHQ they can uncomment the code above where the current code loads the data and change the celebA classifier to the AFHQ classifier.

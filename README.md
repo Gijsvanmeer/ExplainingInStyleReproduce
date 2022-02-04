@@ -8,12 +8,12 @@ The code for the StylEx model in pytorch and further experiments based on the pa
 
 <hr>
 
-The StylEx model is an adaptation of the StyleGAN2 model where we used the StyleGAN2 pytorch code from Rosanality (https://github.com/rosinality/stylegan2-pytorch). The model.py and the train.py python files are adaptations of this code.
+The StylEx model is an adaptation of the StyleGAN2 model where we used the StyleGAN2 PyTorch code from Rosanality (https://github.com/rosinality/stylegan2-pytorch). The model.py and the train.py python files are adaptations of this code.
 
 ### The Files: 
  -  <b>arialuni.ttf</b> contains the tfrecords for the fonts used in the notebook.
- -  <b> op </b> folder contains files from the Rosanality for the stylEx model. 
- - <b>classifier_model.pt</b> The pytorch classifier model, a mobilenetv2 model trained on the AFHQ dataset with image resolution of 64x64. (validation accuracy of 94%)
+ -  <b> op </b> folder contains files from the Rosanality for the StylEx model. 
+ - <b>classifier_model.pt</b> The PyTorch classifier model, a mobilenetv2 model trained on the AFHQ dataset with image resolution of 64x64. (validation accuracy of 94%)
  - <b>env.yml</b> anaconda environment.
  - <b>factai.ipynb</b> is a notebook file where the AttFind algorithm is excecuted and the wu et al. results are replicated.
  - The <b>get_data.py</b> file consisits of the create_dataset_classes(img_folder, size, classes) and create_dataset(img_folder, size) functions to load and resize the images. 
@@ -27,11 +27,11 @@ The StylEx model is an adaptation of the StyleGAN2 model where we used the Style
  - the <b>utility_functions_stylex_notebook.py</b> contains the utility functions from the others in pytorch.
 
 
-### Requirments:
+### Requirements:
 To run the training code certain python libraries should be installed. When using anaconda the yml environment (env.yml) can be installed. For the notebook file the python library Ninja is needed. 
 
 ### How to train:
-To run the training loop of the StylEx model one can run the command <code> python train.py --dir DATA_DIR </code> where DATA_DIR is the dircetory where the data is located. If the data is located in the the same file this part of the command can be excluded. Currently the FFHQ data is the expected together with the celeba classifier. When one wants to run the AFHQ they can uncomment the code above where the current code loads the data and change the celeba classifier to the AFHQ classifier.
+To run the training loop of the StylEx model one can run the command <code> python train.py --dir DATA_DIR </code> where DATA_DIR is the directory where the data is located. If the data is located in the same file this part of the command can be excluded. Currently the FFHQ data is the expected together with the celebA classifier. When one wants to run the AFHQ they can uncomment the code above where the current code loads the data and change the celebA classifier to the AFHQ classifier.
 
 
 ### Common errors: 

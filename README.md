@@ -1,4 +1,4 @@
-# Reproducability study of the StylEx model
+# Reproducibility study of the StylEx model
 The code for the StylEx model in pytorch and further experiments based on the paper "Explaining in Style: Training a GAN to explain a classifier in StyleSpace" by Lang <i>et al.</i> (https://arxiv.org/abs/2104.13369). <br>
 <br>
 <figure>

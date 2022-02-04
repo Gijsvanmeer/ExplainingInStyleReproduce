@@ -34,3 +34,6 @@ To run the training loop of the StylEx model one can run the command <code> pyth
 ### Common errors: 
 - Due to torch version that can conflict with each other the following command can fix this: <code>  rm -rf /tmp/torch_extensions </code>
 - Because we use the code from Rosanality (https://github.com/rosinality/stylegan2-pytorch) we can run into the same bugs, a common bug that can occur is that the code will cause the cache file to have an error. When this occurs the trainings code will not output anything and the entire setup will get stuck. To fix this problem one can either try the above command or go directly into the .cache/torch_extensions directory and delete the fused directory or any locked files that may appear there.
+
+## User study:
+A user study was also performed, the full csv of the results is included as well. The original questions can be found in this google form: https://docs.google.com/forms/d/e/1FAIpQLSdaU9SHBva55oA5HaTz5lYEH4J0_q6ftZg6_4-6H8VeAAKHSQ/viewform.

@@ -13,7 +13,6 @@ The StylEx model is an adaptation of the StyleGAN2 model where we used the Style
 ### The Files: 
  -  <b>arialuni.ttf</b> contains the tfrecords for the fonts used in the notebook.
  -  <b> op </b> folder contains files from the Rosanality for the StylEx model. 
- - <b>classifier_model.pt</b> The PyTorch classifier model, a mobilenetv2 model trained on the AFHQ dataset with image resolution of 64x64. (validation accuracy of 94%)
  - <b>env.yml</b> anaconda environment.
  - <b>factai.ipynb</b> is a notebook file where the AttFind algorithm is excecuted and the wu et al. results are replicated.
  - The <b>get_data.py</b> file consisits of the create_dataset_classes(img_folder, size, classes) and create_dataset(img_folder, size) functions to load and resize the images. 

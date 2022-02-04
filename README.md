@@ -14,7 +14,7 @@ The StylEx model is an adaptation of the StyleGAN2 model where we used the Style
  -  <b>arialuni.ttf</b> contains the tfrecords for the fonts used in the notebook.
  -  <b> op </b> folder contains files from the Rosanality for the StylEx model. 
  - <b>env.yml</b> anaconda environment.
- - <b>StylExAttFind.ipynb</b> is a notebook file where the AttFind algorithm is excecuted and the wu et al. results are replicated. Should be run in Google Colab
+ - <b>StylExAttFind.ipynb</b> is a notebook file where the AttFind algorithm is excecuted and our results are replicated. Should be run in Google Colab
  - The <b>get_data.py</b> file consisits of the create_dataset_classes(img_folder, size, classes) and create_dataset(img_folder, size) functions to load and resize the images. 
  - The <b>model.py</b> contains all the general architectures of the stylEx model. Here you can find the Generator, the Discriminator and the Encoder. 
  - The <b>stylegan_normal_afhq.tfrecord</b> contains the tfrecords of the styleGAN2 model on the AFHQ dataset.

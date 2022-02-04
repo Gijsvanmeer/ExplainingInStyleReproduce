@@ -333,7 +333,7 @@ if __name__ == "__main__":
     # train_data = create_dataset_classes(train_path, 64, ['cat', 'dog'])
     # train_loader = DataLoader(train_data, batch_size=args.batch, shuffle=True)
 
-    train_path_thumb = args.dir + '/Thumbnails128x128/train/'
+    train_path_thumb = args.dir + '/ffhq/train/'
     train_data_thumb = create_dataset(train_path_thumb, 64)
     train_loader = DataLoader(train_data_thumb, batch_size=4, shuffle=True)
 

@@ -351,7 +351,8 @@ def sindex_to_layer_idx_and_index(generator: torch.nn.Module,
   return layer_idx, sindex - layer_shapes_cumsum[layer_idx]
 
 
-def get_classifier_results(generator: torch.nn.Module, 
+def get_classifier_results(classifier: torch.nn.Module,
+                           generator: torch.nn.Module, 
                            expanded_dlatent: torch.Tensor,
                            use_softmax: bool = False,
                            batch_size=1,

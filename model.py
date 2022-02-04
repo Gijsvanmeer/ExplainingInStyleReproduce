@@ -1,3 +1,9 @@
+"""
+Note that this is mostly not our own original work but rather an adapted version
+of the styleGAN2 code in pytorch by Rosanality
+(https://github.com/rosinality/stylegan2-pytorch). All classes without comments are
+not adapted by us and are standard for the stylegan2 implementation
+"""
 import math
 import random
 import functools
@@ -165,7 +171,7 @@ class EqualLinear(nn.Module):
             f"{self.__class__.__name__}({self.weight.shape[1]}, {self.weight.shape[0]})"
         )
 
-
+# The affine transformations that calculate the style vectors
 class style_affine(nn.Module):
     def __init__(self,
         mapped_latent_dim,
@@ -331,14 +337,11 @@ class StyledConv(nn.Module):
         )
 
         self.noise = NoiseInjection()
-        # self.bias = nn.Parameter(torch.zeros(1, out_channel, 1, 1))
-        # self.activate = ScaledLeakyReLU(0.2)
         self.activate = FusedLeakyReLU(out_channel)
 
     def forward(self, input, style, noise=None):
         out = self.conv(input, style)
         out = self.noise(out, noise=noise)
-        # out = out + self.bias
         out = self.activate(out)
 
         return out
@@ -364,7 +367,7 @@ class ToRGB(nn.Module):
 
         return out
 
-
+# The generator class
 class Generator(nn.Module):
     def __init__(
         self,
@@ -500,6 +503,8 @@ class Generator(nn.Module):
         return styles_conv, styles_rgb
 
 
+    # Takes a latent vector z, a mapped latent w or a set of style vectors as input
+    # and outputs the mapped latents, styles and generated image based on the flags
     def forward(
         self,
         latents=None,
@@ -525,6 +530,7 @@ class Generator(nn.Module):
                 ]
 
         if not input_is_styles:
+            # Mapping network
             if not input_is_latent:
                 mapped_latents = [self.mapping(s) for s in latents]
 
@@ -545,11 +551,12 @@ class Generator(nn.Module):
                 mapped_latent2 = mapped_latents[1].unsqueeze(1).repeat(1, self.n_latent - inject_index, 1)
 
                 mapped_latents = torch.cat([mapped_latent, mapped_latent2], 1)
-
+            # Calculate style vectors
             styles = self.get_styles(mapped_latents)
 
         styles_conv, styles_rgb = styles
 
+        # Synthesis network
         out = self.input(styles_conv)
         out = self.conv1(out, styles_conv[0], noise=noise[0])
         skip = self.to_rgb1(out, styles_rgb[0])
@@ -568,8 +575,6 @@ class Generator(nn.Module):
 
 
         if return_latents:
-            # return image, latent
-
             if return_styles:
                 return image, mapped_latents, styles
             return image, mapped_latents, None
@@ -646,6 +651,7 @@ class ResBlock(nn.Module):
         return out
 
 
+# Discriminator network
 class Discriminator(nn.Module):
     def __init__(self, size, channel_multiplier=2, blur_kernel=[1, 3, 3, 1]):
         super().__init__()
@@ -706,6 +712,8 @@ class Discriminator(nn.Module):
 
         return out
 
+# The encoder model. It has the same architecture as the discriminator, but
+# with the final layer mapping to the encoding dimension of 512
 class Encoder(nn.Module):
     def __init__(self, size, channel_multiplier=2, blur_kernel=[1, 3, 3, 1]):
         super().__init__()

@@ -21,6 +21,11 @@ The StylEx model is an adaptation of the StyleGAN2 model where we used the Style
  - The <b>stylegan_normal_afhq.tfrecord</b> contains the tfrecords of the styleGAN2 model on the AFHQ dataset.
  - The <b>stylegan_stylex_afhq.tfrecord</b> contains the tfrecords of the stylEx model on the AFHQ dataset.
  - The <b>train.py</b> contains the training loop for the stylEx model. 
+ - The <b>user_study.csv</b> contains the data from the user study.
+ - The <b>user_study_answers.txt</b> contains the answers of the user study.
+ - The <b>utility_functions_new.py</b> contains newly added utility functions.
+ - the <b>utility_functions_stylex_notebook.py</b> contains the utility functions from the others in pytorch.
+
 
 ### Requirments:
 To run the training code certain python libraries should be installed. When using anaconda the yml environment (env.yml) can be installed. For the notebook file the python library Ninja is needed. 
